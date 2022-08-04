@@ -21,28 +21,24 @@ def toDatetime(date: dt.date, time: dt.time):
     return dt.datetime(date.year, date.month, date.day, time.hour, time.minute, time.second)
 
 
-class parseExcel():
-    def __init__(self, filepath: str, sys_list: list):
+class ReportMaker():
+    def __init__(self, filepath: str, sys_list: list, dumppath: str):
         self.filepath = filepath
         self.sys_list = sys_list
+        self.dumppath = dumppath
         
     def start_process(self):
         dataframe = self.load_dataframe()
         sys_map, idx_list = self.get_machine_count(dataframe, self.sys_list)
-        print(sys_map)                  # test passed
-        print(idx_list)                 # test passed
         mach_runtime = self.get_mach_runtime(idx_list, dataframe)
-        print(mach_runtime[0][0])       # test passed
         sys_runtime = self.get_sys_runtime(idx_list, mach_runtime)
-        print(sys_runtime[0])           # test passed
         max_size = 0
         for i in range(len(idx_list)):
             max_size = max(max_size, len(idx_list[i]))
-        self.plot_runtime(sys_runtime, max_size)    # test passed
+        # self.plot_runtime(sys_runtime, max_size)    # test passed
         start_arr, end_arr = self.get_sys_activity_status(sys_runtime)
-        print(start_arr)                # test passed
-        print(end_arr)                  # test passed
-
+        data = self.create_output_data(dataframe, idx_list, start_arr, end_arr)
+        self.create_output_excel_file(dataframe, data)
         
 
     def load_dataframe(self):
@@ -158,16 +154,76 @@ class parseExcel():
             end_arr.append(end)
         return start_arr, end_arr
 
-    def create_output_data(self):
+    def create_output_data(self, df, idx_list, start_arr, end_arr):
         """
         Returns output data
         """
-        pass
+        tDelta = dt.timedelta(seconds=300)
+        tTime = dt.time(0,0,0)
+        tList = [tTime]
+        for t in range(288):
+            tTime = timePlus(tTime, tDelta)
+            tList.append(tTime)
+        data = []
+        for i in range(len(self.sys_list)):
+            stop_count = 0
+            for j in range(len(start_arr[i])):
+                id = idx_list[i][0]
+                while(type(df[0][id+1])==dt.time):
+                    id+=1
+                    if df[0][id]==tList[start_arr[i][j]]:
+                        if df[1][id]==timeMinus(tList[end_arr[i][j]], dt.timedelta(seconds=1)):
+                            stop_count+=1
+                            row_inp = self.get_row_values(
+                                df, i, stop_count, 
+                                tList[start_arr[i][j]], tList[end_arr[i][j]],
+                                dt.timedelta(minutes=5), dt.timedelta(hours=6), 
+                                dt.timedelta(hours=6), id, idx_list
+                            )
+                            data.append(row_inp)
+                            break
+                        while(type(df[0][id])==dt.time):
+                            stop_count+=1
+                            row_inp = self.get_row_values(
+                                df, i, stop_count,
+                                df[0][id], df[1][id],
+                                dt.timedelta(seconds=1), dt.timedelta(hours=6), 
+                                dt.timedelta(hours=6, seconds=1), id, idx_list
+                            )
+                            data.append(row_inp)
+                            if df[1][id]==timeMinus(tList[end_arr[i][j]+1], dt.timedelta(seconds=1)):
+                                break
+                            id+=1
+                        break
+        return data
+
+    def get_row_values(self, df, i, count, t_start, t_end, t_delta_1, t_delta_2, t_delta_3, id, idx_list):
+        """
+        gets output data and returns in a format to be written on excel file
+        """
+        st = toDatetime(dt.datetime(2000,2,28), t_start)
+        en = toDatetime(dt.datetime(2000,2,28), t_end)
+        dur = en - st + t_delta_1
+        start_time = timePlus(t_start, t_delta_2)
+        end_time = timePlus(t_end, t_delta_3)
+        row = [
+            self.sys_list[i],
+            len(idx_list[i]),
+            count,
+            start_time.strftime("%H:%M"),
+            df[2][0] if start_time<dt.time(6,0) else df[1][0],
+            end_time.strftime("%H:%M"),
+            df[2][0] if end_time<=dt.time(6,0) else df[1][0],
+            '24:00:00' if dur==dt.timedelta(days=1) else str(dur),
+            df[3][id]
+        ]
+        return row
+        
     
-    def create_output_excel_file(self, dump_path, df, data):
+    def create_output_excel_file(self, df, data):
         filename = 'output_'+os.path.basename(self.filepath)
-        workbook = xlsxwriter.Workbook(os.path.join(dump_path, filename))
-        worksheet = workbook.add_worksheet(df[1][0])
+        workbook = xlsxwriter.Workbook(os.path.join(self.dumppath, filename))
+        worksheet = workbook.add_worksheet(str(df[0][0]))
         merge_format = workbook.add_format({
             'border': 1,
             'align': 'center',
@@ -193,7 +249,7 @@ class parseExcel():
         worksheet.write('I2', 'Stoppage Reason', head_format)
 
         for i in range(len(data)):
-            for j in range(len(data[0])):
+            for j in range(len(data[i])):
                 worksheet.write(i+2, j, data[i][j])
         workbook.close() 
 

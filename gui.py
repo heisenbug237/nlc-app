@@ -1,5 +1,6 @@
 import PyQt5.QtWidgets as qtw
 import PyQt5.QtGui as qtg
+import sys
 
 class MainWindow(qtw.QWidget):
     def __init__(self):
@@ -16,10 +17,14 @@ class MainWindow(qtw.QWidget):
         self.layout().addWidget(tabs)
 
         h_layout = qtw.QHBoxLayout()
+        preview_button = qtw.QPushButton("Preview")
+        proceed_button = qtw.QPushButton("Proceed")
         h_layout.addWidget(qtw.QPushButton("Reset"))
-        h_layout.addWidget(qtw.QPushButton("Preview"))
-        h_layout.addWidget(qtw.QPushButton("Proceed"))
+        h_layout.addWidget(preview_button)
+        h_layout.addWidget(proceed_button)
         self.layout().addLayout(h_layout)
+        preview_button.clicked.connect(lambda: self.previewWindow())
+        proceed_button.clicked.connect(lambda: self.proceedWindow())
 
         self.show()
 
@@ -98,13 +103,16 @@ class MainWindow(qtw.QWidget):
         if fname:
             self.file_label.setText(str(fname[0]))
 
+    def previewWindow(self):
+        pass 
 
-    def pressIt(self):
+
+    def proceedWindow(self):
         pass
       
 
 
-app = qtw.QApplication([])
+app = qtw.QApplication(sys.argv)
 mw = MainWindow()
 
 
